@@ -1,0 +1,78 @@
+# ================================================================
+# MAPPO (CTDE) 配置 —— 双机协作抓取 · 分布式版（旋转夹爪基线）
+#
+# 架构 = CTDE（集中式训练 / 去中心化执行）:
+#   · 共享策略 policy: 一份权重, 分别喂每台机【各自的 egocentric 观测】, 各出各自的动作。
+#     参数共享 ≠ 集中式——部署时每台机各跑一份同样的网络, 不依赖中央节点（去中心化执行）。
+#     两机经过 yaw 镜像 + 全机体系观测做到 egocentric 任务对称, 故共享网络天然对称, 无需 agent-ID。
+#   · 中心化 critic value: 训练时看全局 state, 仅用于降低优势估计方差, 推理阶段不参与。
+#   超参（网络 [256,256,128] / rollouts 24 / epochs 5 / minibatch 4）沿用单机已验证配置。
+# ================================================================
+seed: 42
+
+models:
+  separate: False                          # 共享 actor（两机复用一份权重）
+  policy:
+    class: GaussianMixin
+    clip_actions: False
+    clip_log_std: True
+    min_log_std: -20.0
+    max_log_std: 2.0
+    initial_log_std: 0.0
+    network:
+      - name: net
+        input: STATES
+        layers: [256, 256, 128]
+        activations: elu
+    output: ACTIONS
+  value:                                   # 中心化 critic（看全局 state）
+    class: DeterministicMixin
+    clip_actions: False
+    network:
+      - name: net
+        input: STATES
+        layers: [256, 256, 128]
+        activations: elu
+    output: ONE
+
+memory:
+  class: RandomMemory
+  memory_size: -1                          # 自动按 rollouts 定大小
+
+agent:
+  class: MAPPO
+  rollouts: 24
+  learning_epochs: 5
+  mini_batches: 4
+  discount_factor: 0.99
+  gae_lambda: 0.95
+  learning_rate: 5.0e-04
+  learning_rate_scheduler: KLAdaptiveLR
+  learning_rate_scheduler_kwargs:
+    kl_threshold: 0.01
+  observation_preprocessor: RunningStandardScaler      # 每 agent 观测归一化
+  observation_preprocessor_kwargs: null
+  state_preprocessor: RunningStandardScaler            # 全局 state 归一化（中心化 critic）
+  state_preprocessor_kwargs: null
+  value_preprocessor: RunningStandardScaler
+  value_preprocessor_kwargs: null
+  random_timesteps: 0
+  learning_starts: 0
+  grad_norm_clip: 1.0
+  ratio_clip: 0.2
+  value_clip: 0.2
+  entropy_loss_scale: 0.001
+  value_loss_scale: 1.0
+  kl_threshold: 0.0
+  rewards_shaper_scale: 1.0
+  time_limit_bootstrap: False
+  experiment:
+    directory: "flyarm_coop_grasp_marl"
+    experiment_name: ""
+    write_interval: auto
+    checkpoint_interval: 4800
+
+trainer:
+  class: SequentialTrainer
+  timesteps: 288000
+  environment_info: log

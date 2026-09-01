@@ -1,0 +1,762 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- ============================================================================
+     flyarm —— 空中机械臂 (四旋翼 + 4 自由度机械臂 + 二指平行夹爪)
+     由 SolidWorks (Stephen Brawner sw_urdf_exporter) 导出, 后为仿真适配修改.
+
+     针对 IsaacLab / MuJoCo 仿真所做的修改:
+       1. 修复卡死的旋翼: rr_rotor_joint 由 fixed/axis"0 0 0" 改为 continuous/"-1 0 0"
+       2. 机械臂连杆/关节重命名为可读名称 (见下方对照表).
+       3. 四个旋翼重命名: l22/l33/l44/l55 -> rr/fr/fl/rl_rotor (x前 y左 约定).
+       4. 统一网格包路径: "package://arm/..." -> "package://flyarm/...".
+       5. 机械臂自由度关节由 continuous 改为带角度限位的 revolute.
+       6. D 轴 (腕) 限位收紧到 ±0.1 rad (近似固定腕).
+
+     机械臂命名对照 (旧名 -> 新名):
+       l1 -> arm_base          (机械臂固定底座, fixed mount)
+       l2 -> arm_base_rotate   (旋转底座)        关节: base_rotate_joint
+       l3 -> link_bc           (BC 轴连杆)       关节: axis_B_joint
+       l4 -> link_cd           (CD 轴连杆)       关节: axis_C_joint
+       l5 -> gripper_base      (夹爪底座)        关节: axis_D_joint
+       l6 -> gripper_right     (右夹爪)          关节: gripper_right_joint
+       l7 -> gripper_left      (左夹爪)          关节: gripper_left_joint
+
+     旋翼命名对照 (旧名 -> 新名, 按安装位置 x前/y左):
+       l22 (-x,-y) -> rr_rotor  关节: rr_rotor_joint   (右后)
+       l33 (+x,-y) -> fr_rotor  关节: fr_rotor_joint   (右前)
+       l44 (+x,+y) -> fl_rotor  关节: fl_rotor_joint   (左前)
+       l55 (-x,+y) -> rl_rotor  关节: rl_rotor_joint   (左后)
+
+     注意: 仿真请用 flyarm_sim.urdf (相对 mesh 路径). 本文件用 package:// 供网页查看器.
+     <limit> 数值为占位安全值, 训练前按真实舵机行程收紧.
+     ============================================================================ -->
+<robot
+  name="flyarm_parallel_gripper">
+
+  <!-- ======================= 机体 ======================= -->
+  <link
+    name="base_link">
+    <inertial>
+      <origin
+        xyz="0.000351127786367396 -0.000257429115357956 -0.0335575170333576"
+        rpy="0 0 0" />
+      <!-- base_link 质量取 2.0kg (对应真机机架约 2000g). 惯量按质量比缩放(假设质量分布不变, 上真机时用 CAD 精标). -->
+      <mass
+        value="2.0" />
+      <inertia
+        ixx="0.00278714"
+        ixy="2.60343E-06"
+        ixz="2.46949E-08"
+        iyy="0.00136146"
+        iyz="2.65360E-06"
+        izz="0.00305334" />
+    </inertial>
+    <visual>
+      <origin
+        xyz="0 0 0"
+        rpy="0 0 0" />
+      <geometry>
+        <mesh
+          filename="../meshes/base_link.STL" />
+      </geometry>
+      <material
+        name="">
+        <color
+          rgba="1 1 1 1" />
+      </material>
+    </visual>
+    <!-- 保留 base_link 碰撞: 保留物理脚架(更接近真机+安全网). 脚架离地靠"直臂(arm_straight)+ 高悬停(hover_offset)"
+         → 无人机不下降 → 脚架不触地, 而非靠去除碰撞实现. -->
+    <collision>
+      <origin xyz="0 0 0" rpy="0 0 0" />
+      <geometry><mesh filename="../meshes/base_link.STL" /></geometry>
+    </collision>
+  </link>
+
+  <!-- ======================= 旋翼×4 =======================
+       四个旋翼自由旋转(continuous). 升力/反扭由飞控在仿真里施加, 关节轴只是可视化旋转轴. -->
+  <!-- 右后 rr_rotor (原 l22) -->
+  <link
+    name="rr_rotor">
+    <inertial>
+      <origin
+        xyz="0.0473353347145848 0.000197095936702529 0.000174051578952034"
+        rpy="0 0 0" />
+      <mass
+        value="0.0229282927851813" />
+      <inertia
+        ixx="9.09087806405936E-05"
+        ixy="5.13488235782876E-10"
+        ixz="-1.07369138950175E-09"
+        iyy="5.57789393210295E-05"
+        iyz="4.31406386140824E-05"
+        izz="3.5909689375767E-05" />
+    </inertial>
+    <visual>
+      <origin
+        xyz="0 0 0"
+        rpy="0 0 0" />
+      <geometry>
+        <mesh
+          filename="../meshes/rr_rotor.STL" />
+      </geometry>
+      <material
+        name="">
+        <color
+          rgba="1 1 1 1" />
+      </material>
+    </visual>
+    <collision>
+      <origin
+        xyz="0 0 0"
+        rpy="0 0 0" />
+      <geometry>
+        <mesh
+          filename="../meshes/rr_rotor.STL" />
+      </geometry>
+    </collision>
+  </link>
+  <!-- 修正: 原为 fixed / axis="0 0 0" (该旋翼无法转动), 现改为 continuous -->
+  <joint
+    name="rr_rotor_joint"
+    type="continuous">
+    <origin
+      xyz="-0.170163131133237 -0.170201542587365 0.0708"
+      rpy="1.5707963267949 -1.5707963267949 0" />
+    <parent
+      link="base_link" />
+    <child
+      link="rr_rotor" />
+    <axis
+      xyz="-1 0 0" />
+  </joint>
+
+  <!-- 右前 fr_rotor (原 l33) -->
+  <link
+    name="fr_rotor">
+    <inertial>
+      <origin
+        xyz="0.0473275810559199 -0.000467343845156593 -0.000751366737984482"
+        rpy="0 0 0" />
+      <mass
+        value="0.0229273353251971" />
+      <inertia
+        ixx="9.08987166445279E-05"
+        ixy="-9.4681308528274E-07"
+        ixz="-3.211560706351E-08"
+        iyy="1.64331076850008E-06"
+        iyz="-2.2803035789249E-06"
+        izz="9.00554487876853E-05" />
+    </inertial>
+    <visual>
+      <origin
+        xyz="0 0 0"
+        rpy="0 0 0" />
+      <geometry>
+        <mesh
+          filename="../meshes/fr_rotor.STL" />
+      </geometry>
+      <material
+        name="">
+        <color
+          rgba="1 1 1 1" />
+      </material>
+    </visual>
+    <collision>
+      <origin
+        xyz="0 0 0"
+        rpy="0 0 0" />
+      <geometry>
+        <mesh
+          filename="../meshes/fr_rotor.STL" />
+      </geometry>
+    </collision>
+  </link>
+  <joint
+    name="fr_rotor_joint"
+    type="continuous">
+    <origin
+      xyz="0.168176808521089 -0.168048450980534 0.0707991465916544"
+      rpy="1.5707963267949 -1.5707963267949 0" />
+    <parent
+      link="base_link" />
+    <child
+      link="fr_rotor" />
+    <axis
+      xyz="-1 0 0" />
+  </joint>
+
+  <!-- 左前 fl_rotor (原 l44) -->
+  <link
+    name="fl_rotor">
+    <inertial>
+      <origin
+        xyz="0.0473353117833849 0.000202037047005471 -0.000168240650222473"
+        rpy="0 0 0" />
+      <mass
+        value="0.0229281784444268" />
+      <inertia
+        ixx="9.09077649282057E-05"
+        ixy="-9.74921530361897E-10"
+        ixz="-6.67623680368692E-10"
+        iyy="4.93864891618474E-05"
+        iyz="-4.41273182457583E-05"
+        izz="4.23011092928309E-05" />
+    </inertial>
+    <visual>
+      <origin
+        xyz="0 0 0"
+        rpy="0 0 0" />
+      <geometry>
+        <mesh
+          filename="../meshes/fl_rotor.STL" />
+      </geometry>
+      <material
+        name="">
+        <color
+          rgba="1 1 1 1" />
+      </material>
+    </visual>
+    <collision>
+      <origin
+        xyz="0 0 0"
+        rpy="0 0 0" />
+      <geometry>
+        <mesh
+          filename="../meshes/fl_rotor.STL" />
+      </geometry>
+    </collision>
+  </link>
+  <joint
+    name="fl_rotor_joint"
+    type="continuous">
+    <origin
+      xyz="0.170164649982814 0.17012623852867 0.0708"
+      rpy="1.5707963267949 -1.5707963267949 0" />
+    <parent
+      link="base_link" />
+    <child
+      link="fl_rotor" />
+    <axis
+      xyz="-1 0 0" />
+  </joint>
+
+  <!-- 左后 rl_rotor (原 l55) -->
+  <link
+    name="rl_rotor">
+    <inertial>
+      <origin
+        xyz="0.0473351076739079 -0.000259129949975956 4.45263675536989E-05"
+        rpy="0 0 0" />
+      <mass
+        value="0.0229274907678625" />
+      <inertia
+        ixx="9.09084868706134E-05"
+        ixy="5.14458621610906E-10"
+        ixz="1.07562148698373E-09"
+        iyy="8.5845577951234E-05"
+        iyz="-1.89654922420876E-05"
+        izz="5.842688609076E-06" />
+    </inertial>
+    <visual>
+      <origin
+        xyz="0 0 0"
+        rpy="0 0 0" />
+      <geometry>
+        <mesh
+          filename="../meshes/rl_rotor.STL" />
+      </geometry>
+      <material
+        name="">
+        <color
+          rgba="1 1 1 1" />
+      </material>
+    </visual>
+    <collision>
+      <origin
+        xyz="0 0 0"
+        rpy="0 0 0" />
+      <geometry>
+        <mesh
+          filename="../meshes/rl_rotor.STL" />
+      </geometry>
+    </collision>
+  </link>
+  <joint
+    name="rl_rotor_joint"
+    type="continuous">
+    <origin
+      xyz="-0.170871594249042 0.170834701644432 0.0708"
+      rpy="1.5707963267949 -1.5707963267949 0" />
+    <parent
+      link="base_link" />
+    <child
+      link="rl_rotor" />
+    <axis
+      xyz="-1 0 0" />
+  </joint>
+
+  <!-- ======================= 机械臂 =======================
+       链: base_link -(arm_mount)-> arm_base -(base_rotate)-> arm_base_rotate
+           -(axis_B)-> link_bc -(axis_C)-> link_cd -(axis_D)-> gripper_base
+           -(gripper_right / gripper_left)-> 两指
+       关节正方向沿 axis="-1 0 0" (绕局部 -X). -->
+
+  <!-- l1 : 机械臂固定底座 (固连在无人机下方) -->
+  <link
+    name="arm_base">
+    <inertial>
+      <origin
+        xyz="-0.0083485309775336 0.000154996776270776 0.0259797943306873"
+        rpy="0 0 0" />
+      <mass
+        value="0.272894323468001" />
+      <inertia
+        ixx="0.000188019850509716"
+        ixy="2.3204599431514E-07"
+        ixz="1.45801251226452E-05"
+        iyy="0.000210926622774998"
+        iyz="-1.06345721979206E-07"
+        izz="0.000310160657895025" />
+    </inertial>
+    <visual>
+      <origin
+        xyz="0 0 0"
+        rpy="0 0 0" />
+      <geometry>
+        <mesh
+          filename="../meshes/arm_base.STL" />
+      </geometry>
+      <material
+        name="">
+        <color
+          rgba="0.776470588235294 0.756862745098039 0.737254901960784 1" />
+      </material>
+    </visual>
+    <collision>
+      <origin
+        xyz="0 0 0"
+        rpy="0 0 0" />
+      <geometry>
+        <mesh
+          filename="../meshes/arm_base.STL" />
+      </geometry>
+    </collision>
+  </link>
+  <!-- j00 : 机械臂刚性固连到机体 -->
+  <joint
+    name="arm_mount_joint"
+    type="fixed">
+    <origin
+      xyz="0 0 0"
+      rpy="3.14 0 -1.57" />
+    <parent
+      link="base_link" />
+    <child
+      link="arm_base" />
+    <axis
+      xyz="0 0 0" />
+  </joint>
+
+  <!-- l2 : 旋转底座 -->
+  <link
+    name="arm_base_rotate">
+    <inertial>
+      <origin
+        xyz="0.0359439762293015 -0.00713462357357059 -0.00308284931111787"
+        rpy="0 0 0" />
+      <mass
+        value="0.191533351388813" />
+      <inertia
+        ixx="0.000107090640010156"
+        ixy="9.5354041509615E-07"
+        ixz="-4.44253031875453E-06"
+        iyy="0.000134604517947024"
+        iyz="9.66928729492876E-06"
+        izz="0.000116154179587917" />
+    </inertial>
+    <visual>
+      <origin
+        xyz="0 0 0"
+        rpy="0 0 0" />
+      <geometry>
+        <mesh
+          filename="../meshes/arm_base_rotate.STL" />
+      </geometry>
+      <material
+        name="">
+        <color
+          rgba="0.776470588235294 0.756862745098039 0.737254901960784 1" />
+      </material>
+    </visual>
+    <collision>
+      <origin
+        xyz="0 0 0"
+        rpy="0 0 0" />
+      <geometry>
+        <mesh
+          filename="../meshes/arm_base_rotate.STL" />
+      </geometry>
+    </collision>
+  </link>
+  <!-- j2 : 底座旋转 (整臂偏航), 范围大 -->
+  <joint
+    name="base_rotate_joint"
+    type="revolute">
+    <origin
+      xyz="0 0 0.0504999999999999"
+      rpy="1.5707963267949 -1.5707963267949 0" />
+    <parent
+      link="arm_base" />
+    <child
+      link="arm_base_rotate" />
+    <axis
+      xyz="-1 0 0" />
+    <limit
+      lower="-3.14159"
+      upper="3.14159"
+      effort="10"
+      velocity="6.28" />
+    <dynamics
+      damping="0.1"
+      friction="0.0" />
+  </joint>
+
+  <!-- l3 : BC 轴连杆 -->
+  <link
+    name="link_bc">
+    <inertial>
+      <origin
+        xyz="0.0165075601084717 0.0473372214162494 -0.00476164013502745"
+        rpy="0 0 0" />
+      <mass
+        value="0.0565655004543067" />
+      <inertia
+        ixx="0.000103481838185612"
+        ixy="5.35024877797434E-06"
+        ixz="9.01545719378009E-07"
+        iyy="1.5531248902396E-05"
+        iyz="-4.46160971196172E-06"
+        izz="0.000106991404292056" />
+    </inertial>
+    <visual>
+      <origin
+        xyz="0 0 0"
+        rpy="0 0 0" />
+      <geometry>
+        <mesh
+          filename="../meshes/link_bc.STL" />
+      </geometry>
+      <material
+        name="">
+        <color
+          rgba="0.698039215686274 0.698039215686274 0.698039215686274 1" />
+      </material>
+    </visual>
+    <collision>
+      <origin
+        xyz="0 0 0"
+        rpy="0 0 0" />
+      <geometry>
+        <mesh
+          filename="../meshes/link_bc.STL" />
+      </geometry>
+    </collision>
+  </link>
+  <!-- j3 : B 轴 -->
+  <joint
+    name="axis_B_joint"
+    type="revolute">
+    <origin
+      xyz="0.055999999999994 0.000382836228957711 -0.0194205883228549"
+      rpy="0 -1.09630311786825 -1.5707963267949" />
+    <parent
+      link="arm_base_rotate" />
+    <child
+      link="link_bc" />
+    <axis
+      xyz="-1 0 0" />
+    <limit
+      lower="-2.61799"
+      upper="2.61799"
+      effort="10"
+      velocity="6.28" />
+    <dynamics
+      damping="0.1"
+      friction="0.0" />
+  </joint>
+
+  <!-- l4 : CD 轴连杆 -->
+  <link
+    name="link_cd">
+    <inertial>
+      <origin
+        xyz="-0.0154905535289683 0.0154928277803316 -0.0387592194782328"
+        rpy="0 0 0" />
+      <mass
+        value="0.0370929114993028" />
+      <inertia
+        ixx="7.10283674427326E-05"
+        ixy="-4.5211030823379E-07"
+        ixz="6.62959517460371E-06"
+        iyy="7.16905054596082E-05"
+        iyz="1.24835133153328E-06"
+        izz="1.19965985824017E-05" />
+    </inertial>
+    <visual>
+      <origin
+        xyz="0 0 0"
+        rpy="0 0 0" />
+      <geometry>
+        <mesh
+          filename="../meshes/link_cd.STL" />
+      </geometry>
+      <material
+        name="">
+        <color
+          rgba="0.698039215686274 0.698039215686274 0.698039215686274 1" />
+      </material>
+    </visual>
+    <collision>
+      <origin
+        xyz="0 0 0"
+        rpy="0 0 0" />
+      <geometry>
+        <mesh
+          filename="../meshes/link_cd.STL" />
+      </geometry>
+    </collision>
+  </link>
+  <!-- j4 : C 轴 -->
+  <joint
+    name="axis_C_joint"
+    type="revolute">
+    <origin
+      xyz="0.0294500000000001 0.119941950317014 0.00373209782198392"
+      rpy="0 0 0" />
+    <parent
+      link="link_bc" />
+    <child
+      link="link_cd" />
+    <axis
+      xyz="-1 0 0" />
+    <limit
+      lower="-2.61799"
+      upper="2.61799"
+      effort="10"
+      velocity="6.28" />
+    <dynamics
+      damping="0.1"
+      friction="0.0" />
+  </joint>
+  <!-- ======================= 平行夹爪 =======================
+       平行夹爪由独立的 gripperurdf 工程导出, 嫁接到 gripper_base 处替换原夹爪子树.
+       SolidWorks 导出时夹爪处于闭合姿态, 故 gripper_left/right_joint = 0 表示闭合.
+       导出的 left_finger/right_finger 重命名为 gripper_left/gripper_right 以兼容仿真代码. -->
+  <!-- axis_D_joint 保持在真实的 link_cd 腕轴上, 新夹爪的安装位姿由下方的 fixed 安装关节施加. -->
+  <link name="gripper_mount">
+    <inertial>
+      <origin xyz="0 0 0" rpy="0 0 0" />
+      <mass value="0.001" />
+      <inertia ixx="1e-7" ixy="0" ixz="0" iyy="1e-7" iyz="0" izz="1e-7" />
+    </inertial>
+  </link>
+
+ <link
+    name="gripper_base">
+    <inertial>
+      <origin
+        xyz="0.044149 -0.00010515 0.012529"
+        rpy="0 0 0" />
+      <mass
+        value="0.064342" />
+      <inertia
+        ixx="1.8571E-05"
+        ixy="-7.3559E-09"
+        ixz="-6.1987E-07"
+        iyy="1.4672E-05"
+        iyz="1.8228E-09"
+        izz="2.1739E-05" />
+    </inertial>
+    <visual>
+      <origin
+        xyz="0 0 0"
+        rpy="0 0 0" />
+      <geometry>
+        <mesh
+          filename="../meshes/parallel_gripper/pg_gripper_base.STL" />
+      </geometry>
+      <material
+        name="">
+        <color
+          rgba="1 1 1 1" />
+      </material>
+    </visual>
+    <collision>
+      <origin
+        xyz="0 0 0"
+        rpy="0 0 0" />
+      <geometry>
+        <mesh
+          filename="../meshes/parallel_gripper/pg_gripper_base.STL" />
+      </geometry>
+    </collision>
+  </link>
+
+<!-- j5 : D 轴 (腕) — 行程很小 ±0.1rad(±5.7°), 近似固定. 按真实机构调整 -->
+  <joint
+    name="axis_D_joint"
+    type="revolute">
+    <!-- 朝向修正: 新平行夹爪沿自身 +X 伸出, 而原夹爪朝 -Z(下方).
+         axis_D 的 origin 与原夹爪安装位保持一致, 夹爪的旋转朝向由下方 fixed 安装关节统一施加.
+         在网页 viewer 中应看到: 夹爪朝下、两指沿水平轴张开, 拖动 joint 0→0.017 两指张开. -->
+    <origin
+      xyz="0.000800000000000052 0.00740154405860555 -0.119771520594624"
+      rpy="0 0 0" />
+    <parent
+      link="link_cd" />
+    <child
+      link="gripper_mount" />
+    <axis
+      xyz="-1 0 0" />
+    <limit
+      lower="-0.1"
+      upper="0.1"
+      effort="10"
+      velocity="6.28" />
+    <dynamics
+      damping="0.1"
+      friction="0.0" />
+  </joint>
+
+  <!-- 由真实腕轴到导出的平行夹爪坐标系的固定安装关节.
+       沿腕轴方向的 -0.013m 偏移使夹爪安装叉耳居中套到 link_cd 末端轴线上. -->
+  <joint
+    name="parallel_gripper_mount_joint"
+    type="fixed">
+    <origin
+      xyz="-0.013 0 0"
+      rpy="1.5708 1.5708 0" />
+    <parent
+      link="gripper_mount" />
+    <child
+      link="gripper_base" />
+  </joint>
+
+<link
+    name="gripper_left">
+    <inertial>
+      <origin
+        xyz="0.022796 -0.0023995 -0.00090228"
+        rpy="0 0 0" />
+      <mass
+        value="0.0084174" />
+      <inertia
+        ixx="2.3149E-07"
+        ixy="2.5658E-07"
+        ixz="1.1766E-07"
+        iyy="3.3019E-06"
+        iyz="-1.0155E-08"
+        izz="3.1997E-06" />
+    </inertial>
+    <visual>
+      <origin
+        xyz="0 0 0"
+        rpy="0 0 0" />
+      <geometry>
+        <mesh
+          filename="../meshes/parallel_gripper/pg_left_finger.STL" />
+      </geometry>
+      <material
+        name="">
+        <color
+          rgba="0.69804 0.69804 0.69804 1" />
+      </material>
+    </visual>
+    <collision>
+      <origin
+        xyz="0 0 0"
+        rpy="0 0 0" />
+      <geometry>
+        <mesh
+          filename="../meshes/parallel_gripper/pg_left_finger.STL" />
+      </geometry>
+    </collision>
+  </link>
+  <joint
+    name="gripper_left_joint"
+    type="prismatic">
+    <origin
+      xyz="0.081462 -0.014745 0.019616"
+      rpy="0 0 0" />
+    <parent
+      link="gripper_base" />
+    <child
+      link="gripper_left" />
+    <axis
+      xyz="0 -1 0" />
+    <limit
+      lower="0"
+      upper="0.017"
+      effort="20"
+      velocity="0.1" />
+  </joint>
+  <link
+    name="gripper_right">
+    <inertial>
+      <origin
+        xyz="0.022796 0.0023995 -0.00090223"
+        rpy="0 0 0" />
+      <mass
+        value="0.0084174" />
+      <inertia
+        ixx="2.3149E-07"
+        ixy="-2.5658E-07"
+        ixz="1.1767E-07"
+        iyy="3.3019E-06"
+        iyz="1.0156E-08"
+        izz="3.1997E-06" />
+    </inertial>
+    <visual>
+      <origin
+        xyz="0 0 0"
+        rpy="0 0 0" />
+      <geometry>
+        <mesh
+          filename="../meshes/parallel_gripper/pg_right_finger.STL" />
+      </geometry>
+      <material
+        name="">
+        <color
+          rgba="0.69804 0.69804 0.69804 1" />
+      </material>
+    </visual>
+    <collision>
+      <origin
+        xyz="0 0 0"
+        rpy="0 0 0" />
+      <geometry>
+        <mesh
+          filename="../meshes/parallel_gripper/pg_right_finger.STL" />
+      </geometry>
+    </collision>
+  </link>
+  <joint
+    name="gripper_right_joint"
+    type="prismatic">
+    <origin
+      xyz="0.081462 0.014351 0.019616"
+      rpy="0 0 0" />
+    <parent
+      link="gripper_base" />
+    <child
+      link="gripper_right" />
+    <axis
+      xyz="0 1 0" />
+    <limit
+      lower="0"
+      upper="0.017"
+      effort="20"
+      velocity="0.1" />
+  </joint>
+
+</robot>

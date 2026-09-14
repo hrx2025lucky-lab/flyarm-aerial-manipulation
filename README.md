@@ -16,6 +16,36 @@ FlyArm 四旋翼、机械臂与二指夹爪的实机装配照片。
 
 ---
 
+## 视频演示
+
+点击下方播放器即可在线观看四种任务的仿真回放。
+
+### 单机抓取 · 旋转夹爪
+
+https://github.com/user-attachments/assets/2feaf8e1-7562-4365-8179-b15f51524419
+
+16 秒 · [查看原始视频](video/flyarm_ladrc_success_单机旋转夹爪.mp4)
+
+### 单机抓取 · 平行夹爪
+
+https://github.com/user-attachments/assets/decc949b-a991-43d2-ae42-240d548cd16b
+
+12 秒 · [查看原始视频](video/rl-video-step-单机平行夹爪.mp4)
+
+### 双机协作 · 集中式 PPO
+
+https://github.com/user-attachments/assets/4af81a8f-510a-4cc1-98a6-b09a21211e7c
+
+18 秒 · [查看原始视频](video/rl-video-step-集中式双机协作.mp4)
+
+### 双机协作 · 分布式 MAPPO
+
+https://github.com/user-attachments/assets/be383560-78b0-468a-8d94-290428423290
+
+20 秒 · [查看原始视频](video/rl-video-step-分布式双机协作.mp4)
+
+---
+
 ## 1. 项目概述
 
 平台需要完成的动作链：**起飞悬停 → 飞到目标上方 → 伸展机械臂 → 竖直对准并夹取 → 抬升并带物体飞行**。

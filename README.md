@@ -6,6 +6,16 @@
 
 ---
 
+## 实机装配
+
+FlyArm 四旋翼、机械臂与二指夹爪的实机装配照片。
+
+| 装配视角一 | 装配视角二 |
+|---|---|
+| ![FlyArm 实机装配视角一](docs/images/hardware/flyarm_assembled_view_01.jpg) | ![FlyArm 实机装配视角二](docs/images/hardware/flyarm_assembled_view_02.jpg) |
+
+---
+
 ## 1. 项目概述
 
 平台需要完成的动作链：**起飞悬停 → 飞到目标上方 → 伸展机械臂 → 竖直对准并夹取 → 抬升并带物体飞行**。

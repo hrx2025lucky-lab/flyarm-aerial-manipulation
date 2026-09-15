@@ -12,7 +12,7 @@ FlyArm 四旋翼、机械臂与二指夹爪的实机装配照片。
 
 | 装配视角一 | 装配视角二 |
 |---|---|
-| ![FlyArm 实机装配视角一](docs/images/hardware/flyarm_assembled_view_01.jpg) | ![FlyArm 实机装配视角二](docs/images/hardware/flyarm_assembled_view_02.jpg) |
+| <img src="docs/images/hardware/flyarm_assembled_view_01.jpg" alt="FlyArm 实机装配视角一" width="320"> | <img src="docs/images/hardware/flyarm_assembled_view_02.jpg" alt="FlyArm 实机装配视角二" width="320"> |
 
 ---
 
